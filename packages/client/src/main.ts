@@ -56,7 +56,7 @@ window.addEventListener("keydown", (e) => {
   }
 
   socket.emit("update", {
-    position: player.position
+    position: player?.position
   });
 });
 
@@ -76,10 +76,15 @@ socket.on("clients", (clients: any) => {
   })
 })
 
+socket.on("removeClient", (id) => {
+  scene.remove(scene.getObjectByName(id)!);
+});
+
 renderer.setSize(width, height);
 function gameLoop() {
   requestAnimationFrame(gameLoop);
   renderer.render(scene, camera);
+  renderer.setClearColor(0xffffff);
 }
 
 socket.on("id", (id) => {

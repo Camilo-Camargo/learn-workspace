@@ -25,7 +25,8 @@ io.on("connection", (socket) => {
     })
 
     socket.on("disconnect", () => {
-        delete clients[socket.id]
+        delete clients[socket.id];
+        io.emit("removeClient", socket.id);
     })
 });
 
