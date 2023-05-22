@@ -1,4 +1,8 @@
+import { io } from "socket.io-client";
 import * as THREE from "three"
+
+const socket = io('http://localhost:8080');
+socket.emit("message", "Hello");
 
 const CANVAS_ID = "app";
 let width = window.innerWidth;
