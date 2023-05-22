@@ -1,12 +1,14 @@
 import { io } from "socket.io-client";
 import * as THREE from "three"
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import Stats from "stats.js"
 
 const socket = io('http://localhost:8080');
 
 const CANVAS_ID = "app";
 let width = window.innerWidth;
 let height = window.innerHeight;
-let clientId: string; 
+let clientId: string;
 
 const renderer = new THREE.WebGLRenderer({
   canvas: document.getElementById(CANVAS_ID) as HTMLCanvasElement
@@ -16,8 +18,14 @@ const camera = new THREE.PerspectiveCamera(
   75,
   width / height,
   0.1,
-  1000
+  10000
 );
+
+const controls = new OrbitControls(camera, renderer.domElement);
+const stats = new Stats();
+document.body.appendChild(stats.dom);
+camera.position.set(0, 2, 2);
+controls.update();
 
 window.addEventListener("resize", () => {
   width = window.innerWidth;
@@ -64,11 +72,11 @@ socket.on("clients", (clients: any) => {
   delete clients[clientId];
   Object.keys(clients).forEach(player => {
     const playerValues = clients[player];
-    if(!scene.getObjectByName(player)){
+    if (!scene.getObjectByName(player)) {
       const newPlayer = new THREE.Mesh(playerGeometry, playerMaterial);
       newPlayer.name = player;
       scene.add(newPlayer);
-    }else{
+    } else {
       const newPlayer = scene.getObjectByName(player)!;
       const position = playerValues.position;
       newPlayer.position.set(position.x, position.y, position.z);
@@ -83,6 +91,8 @@ socket.on("removeClient", (id) => {
 renderer.setSize(width, height);
 function gameLoop() {
   requestAnimationFrame(gameLoop);
+  controls.update();
+  stats.update();
   renderer.render(scene, camera);
   renderer.setClearColor(0xffffff);
 }
