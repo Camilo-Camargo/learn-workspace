@@ -11,10 +11,21 @@ const io = new Server(server, {
 });
 
 const port = 8080;
+const clients: any = {};
 
 io.on("connection", (socket) => {
-    socket.on("message", (msg) => {
-        console.log(`Socket: ${msg} ${socket.id}`);
+    socket.emit("id", socket.id);
+    clients[socket.id] = {};
+
+    socket.on("update", (location) => {
+        clients[socket.id] = {
+            position: location.position
+        }
+        io.emit("clients", clients);
+    })
+
+    socket.on("disconnect", () => {
+        delete clients[socket.id]
     })
 });
 
