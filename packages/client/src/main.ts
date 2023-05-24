@@ -3,9 +3,10 @@ import * as THREE from "three"
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import Stats from "stats.js"
 import { getRapier } from "./rapier";
+import { RigidBody, RigidBodyType } from "@dimforge/rapier3d";
 
 const RAPIER = await getRapier();
-const gravity = {x: 0.0, y:-9.81, z:0.0};
+const gravity = { x: 0.0, y: -9.81, z: 0.0 };
 const world = new RAPIER.World(gravity);
 
 const socket = io('http://localhost:8080');
@@ -39,31 +40,71 @@ window.addEventListener("resize", () => {
   renderer.setSize(width, height);
 });
 
+// add floor physic
+const floor = new THREE.Mesh(
+  new THREE.BoxGeometry(5, 0.25, 5),
+  new THREE.MeshBasicMaterial({ color: 'red' })
+);
+floor.position.set(0, 0, 0);
+
+const floorBodyDesc = new RAPIER.RigidBodyDesc(RigidBodyType.Fixed);
+const floorBody = world.createRigidBody(floorBodyDesc);
+
+//@ts-ignore
+floorBody.setTranslation({ x: 0, y: 0, z: 0 });
+const floorColliderDesc = RAPIER.ColliderDesc.cuboid(2.5, 0.125, 2.5);
+world.createCollider(floorColliderDesc, floorBody);
+scene.add(floor);
+
 scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 
 const sun = new THREE.DirectionalLight(0xffffff);
 sun.position.set(50, 50, 50);
 scene.add(sun);
 
-const playerGeometry = new THREE.BoxGeometry(1, 1);
+const playerGeometry = new THREE.BoxGeometry(1, 1, 1);
 const playerMaterial = new THREE.MeshLambertMaterial({ color: 0xff00ff });
 const player = new THREE.Mesh(playerGeometry, playerMaterial);
-player.position.set(0, 0, 0);
+player.position.set(0, 3, 0);
+const rigidBodyDesc = new RAPIER.RigidBodyDesc(RigidBodyType.Dynamic)
+  .setTranslation(1, 3, 1);
+const rigidBody = world.createRigidBody(rigidBodyDesc);
+const rigidBodyColliderDesc = RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5);
+const rigidBodyCollider = world.createCollider(rigidBodyColliderDesc, rigidBody);
+rigidBodyCollider.setRestitution(1);
+
 scene.add(player);
 
 window.addEventListener("keydown", (e) => {
+  const position = rigidBody.translation();
   switch (e.key) {
     case "ArrowUp":
-      player.translateZ(-1);
+      rigidBody.setTranslation({
+        x: position.x,
+        y: position.y,
+        z: position.z-1
+      },true);
       break;
     case "ArrowDown":
-      player.translateZ(1);
+      rigidBody.setTranslation({
+        x: position.x,
+        y: position.y,
+        z: position.z+1
+      },true);
       break;
     case "ArrowLeft":
-      player.translateX(-1);
+      rigidBody.setTranslation({
+        x: position.x-1,
+        y: position.y,
+        z: position.z
+      },true);
       break;
     case "ArrowRight":
-      player.translateX(1);
+      rigidBody.setTranslation({
+        x: position.x+1,
+        y: position.y,
+        z: position.z
+      },true);
       break;
   }
 
@@ -97,6 +138,13 @@ function gameLoop() {
   requestAnimationFrame(gameLoop);
   controls.update();
   stats.update();
+  world.step();
+  const rigidBodyPosition = rigidBody.translation();
+  player.position.set(
+    rigidBodyPosition.x,
+    rigidBodyPosition.y,
+    rigidBodyPosition.z
+  );
   renderer.render(scene, camera);
   renderer.setClearColor(0xffffff);
 }
