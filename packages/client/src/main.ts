@@ -2,9 +2,13 @@ import { io } from "socket.io-client";
 import * as THREE from "three"
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import Stats from "stats.js"
+import { getRapier } from "./rapier";
+
+const RAPIER = await getRapier();
+const gravity = {x: 0.0, y:-9.81, z:0.0};
+const world = new RAPIER.World(gravity);
 
 const socket = io('http://localhost:8080');
-
 const CANVAS_ID = "app";
 let width = window.innerWidth;
 let height = window.innerHeight;
