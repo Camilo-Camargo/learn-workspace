@@ -3,7 +3,9 @@ import * as THREE from "three"
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import Stats from "stats.js"
 import { getRapier } from "./rapier";
-import { RigidBody, RigidBodyType } from "@dimforge/rapier3d";
+import { RigidBody, RigidBodyType, Vector } from "@dimforge/rapier3d";
+
+
 
 const RAPIER = await getRapier();
 const gravity = { x: 0.0, y: -9.81, z: 0.0 };
@@ -62,65 +64,77 @@ const sun = new THREE.DirectionalLight(0xffffff);
 sun.position.set(50, 50, 50);
 scene.add(sun);
 
-const playerGeometry = new THREE.BoxGeometry(1, 1, 1);
-const playerMaterial = new THREE.MeshLambertMaterial({ color: 0xff00ff });
-const player = new THREE.Mesh(playerGeometry, playerMaterial);
-player.position.set(0, 3, 0);
-const rigidBodyDesc = new RAPIER.RigidBodyDesc(RigidBodyType.Dynamic)
-  .setTranslation(1, 3, 1);
-const rigidBody = world.createRigidBody(rigidBodyDesc);
-const rigidBodyColliderDesc = RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5);
-const rigidBodyCollider = world.createCollider(rigidBodyColliderDesc, rigidBody);
-rigidBodyCollider.setRestitution(1);
+class Player {
+  geometry: THREE.BoxGeometry;
+  material: THREE.MeshLambertMaterial;
+  mesh: THREE.Mesh
+  rigidBody: RigidBody;
+  constructor() {
+    this.geometry = new THREE.BoxGeometry(1, 1, 1);
+    this.material = new THREE.MeshLambertMaterial({ color: 0xff00ff });
+    this.mesh = new THREE.Mesh(this.geometry, this.material);
+    this.mesh.position.set(0, 3, 0);
 
-scene.add(player);
+    // add physics
+    const rigidBodyDesc = new RAPIER.RigidBodyDesc(RigidBodyType.Dynamic)
+      .setTranslation(1, 3, 1);
+    this.rigidBody = world.createRigidBody(rigidBodyDesc);
+    const rigidBodyColliderDesc = RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5);
+    const rigidBodyCollider = world.createCollider(rigidBodyColliderDesc, this.rigidBody);
+    rigidBodyCollider.setRestitution(1);
 
-window.addEventListener("keydown", (e) => {
-  const position = rigidBody.translation();
-  switch (e.key) {
-    case "ArrowUp":
-      rigidBody.setTranslation({
-        x: position.x,
-        y: position.y,
-        z: position.z-1
-      },true);
-      break;
-    case "ArrowDown":
-      rigidBody.setTranslation({
-        x: position.x,
-        y: position.y,
-        z: position.z+1
-      },true);
-      break;
-    case "ArrowLeft":
-      rigidBody.setTranslation({
-        x: position.x-1,
-        y: position.y,
-        z: position.z
-      },true);
-      break;
-    case "ArrowRight":
-      rigidBody.setTranslation({
-        x: position.x+1,
-        y: position.y,
-        z: position.z
-      },true);
-      break;
+    this.gameKeyboard();
   }
 
-  socket.emit("update", {
-    position: player?.position
-  });
-});
+  gameKeyboard() {
+    window.addEventListener("keydown", (e) => {
+      const playerPosition = this.rigidBody.translation();
+      const vector: Vector = playerPosition;
+
+      switch (e.key) {
+        case "ArrowUp":
+          vector.z = vector.z - 1;
+          break;
+        case "ArrowDown":
+          vector.z = vector.z + 1;
+          break;
+        case "ArrowLeft":
+          vector.x = vector.x - 1;
+          break;
+        case "ArrowRight":
+          vector.x = vector.x + 1;
+          break;
+      }
+
+      this.updatePosition(vector);
+    });
+  }
+
+  updatePosition(vector: Vector) {
+    this.rigidBody.setTranslation(vector, true);
+    socket.emit("update", {
+      position: vector
+    });
+
+  }
+
+  update() {
+    const position = this.rigidBody.translation();
+    this.mesh.position.set(position.x, position.y, position.z);
+  }
+}
+
+const player = new Player();
+scene.add(player.mesh);
 
 socket.on("clients", (clients: any) => {
   delete clients[clientId];
   Object.keys(clients).forEach(player => {
     const playerValues = clients[player];
     if (!scene.getObjectByName(player)) {
-      const newPlayer = new THREE.Mesh(playerGeometry, playerMaterial);
-      newPlayer.name = player;
-      scene.add(newPlayer);
+      const newPlayer = new Player();
+      newPlayer.mesh.name = player;
+      scene.add(newPlayer.mesh);
     } else {
       const newPlayer = scene.getObjectByName(player)!;
       const position = playerValues.position;
@@ -139,12 +153,7 @@ function gameLoop() {
   controls.update();
   stats.update();
   world.step();
-  const rigidBodyPosition = rigidBody.translation();
-  player.position.set(
-    rigidBodyPosition.x,
-    rigidBodyPosition.y,
-    rigidBodyPosition.z
-  );
+  player.update();
   renderer.render(scene, camera);
   renderer.setClearColor(0xffffff);
 }
