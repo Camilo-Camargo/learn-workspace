@@ -3,9 +3,7 @@ import * as THREE from "three"
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import Stats from "stats.js"
 import { getRapier } from "./rapier";
-import { RigidBody, RigidBodyType, Vector } from "@dimforge/rapier3d";
-
-
+import { Collider, RigidBody, RigidBodyType, Vector } from "@dimforge/rapier3d";
 
 const RAPIER = await getRapier();
 const gravity = { x: 0.0, y: -9.81, z: 0.0 };
@@ -69,6 +67,7 @@ class Player {
   material: THREE.MeshLambertMaterial;
   mesh: THREE.Mesh
   rigidBody: RigidBody;
+  collider: Collider;
   constructor() {
     this.geometry = new THREE.BoxGeometry(1, 1, 1);
     this.material = new THREE.MeshLambertMaterial({ color: 0xff00ff });
@@ -80,10 +79,8 @@ class Player {
       .setTranslation(1, 3, 1);
     this.rigidBody = world.createRigidBody(rigidBodyDesc);
     const rigidBodyColliderDesc = RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5);
-    const rigidBodyCollider = world.createCollider(rigidBodyColliderDesc, this.rigidBody);
-    rigidBodyCollider.setRestitution(1);
-
-    this.gameKeyboard();
+    this.collider = world.createCollider(rigidBodyColliderDesc, this.rigidBody);
+    this.collider.setRestitution(1);
   }
 
   gameKeyboard() {
@@ -105,61 +102,70 @@ class Player {
           vector.x = vector.x + 1;
           break;
       }
-
       this.updatePosition(vector);
     });
   }
 
   updatePosition(vector: Vector) {
     this.rigidBody.setTranslation(vector, true);
-    socket.emit("update", {
-      position: vector
-    });
-
+    this.mesh.position.set(vector.x, vector.y, vector.z);
   }
 
   update() {
     const position = this.rigidBody.translation();
     this.mesh.position.set(position.x, position.y, position.z);
+    socket.emit("update", {
+      position: position
+    });
+
   }
 }
+
+const clients: any = {};
 
 const player = new Player();
 scene.add(player.mesh);
 
-socket.on("clients", (clients: any) => {
-  delete clients[clientId];
-  Object.keys(clients).forEach(player => {
-    const playerValues = clients[player];
-    if (!scene.getObjectByName(player)) {
+socket.on("clients", (newClients: any) => {
+  delete newClients[clientId];
+  Object.keys(newClients).forEach(playerId => {
+    const player: Player | undefined = clients[playerId];
+    if (!player) {
       const newPlayer = new Player();
-      newPlayer.mesh.name = player;
+      clients[playerId] = newPlayer;
+      newPlayer.mesh.name = playerId;
       scene.add(newPlayer.mesh);
-    } else {
-      const newPlayer = scene.getObjectByName(player)!;
-      const position = playerValues.position;
-      newPlayer.position.set(position.x, position.y, position.z);
+      newPlayer.update();
     }
   })
 })
 
-socket.on("removeClient", (id) => {
-  scene.remove(scene.getObjectByName(id)!);
+socket.on("removeClient", (playerId) => {
+  world.removeCollider(clients[playerId], true);
 });
 
+
+player.gameKeyboard();
 renderer.setSize(width, height);
 function gameLoop() {
   requestAnimationFrame(gameLoop);
   controls.update();
   stats.update();
   world.step();
-  player.update();
+  Object.values(clients).forEach((player: any) => {
+    if (player) {
+      player.update();
+      console.log(player);
+    }
+  });
   renderer.render(scene, camera);
   renderer.setClearColor(0xffffff);
 }
 
 socket.on("id", (id) => {
   clientId = id;
-  gameLoop();
+  clients[clientId] = player;
 });
+
+gameLoop();
 
