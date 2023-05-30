@@ -136,6 +136,9 @@ socket.on("clients", (newClients: any) => {
       newPlayer.mesh.name = playerId;
       scene.add(newPlayer.mesh);
       newPlayer.update();
+    }else{
+      const position = newClients[playerId]; 
+      player.updatePosition(position);
     }
   })
 })
